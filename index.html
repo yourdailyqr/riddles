@@ -225,6 +225,7 @@
       <div class="reset-spacer"></div>
       <div class="reset-text-area">
         <div class="reset-message">Oops. It&rsquo;s been a little while. Looks like you need to rescan the QR code to see today&rsquo;s riddle.</div>
+        <button onclick="localStorage.removeItem('ydq_riddle_last_view_ts'); location.reload();" style="margin-top:16px; background:none; border:1px solid rgba(255,255,255,0.4); border-radius:20px; padding:6px 18px; font-size:11px; color:rgba(255,255,255,0.6); cursor:pointer; font-family:inherit;">Tap to reset &amp; preview</button>
       </div>
       <div class="reset-footer">
         <a href="https://www.yourdailyqr.com" target="_blank">www.yourdailyqr.com</a>
@@ -343,12 +344,28 @@ function passesScanGate() {
   return false;
 }
 
-if (passesScanGate()) {
+let scanGateOpen = passesScanGate();
+
+function showGateScreen() {
+  document.querySelector('.scrim').style.display = 'none';
+  document.getElementById('resetScreen').style.display = 'flex';
+}
+
+/* Re-check the gate whenever the tab becomes visible again — covers a tab
+   left open in the background (not reloaded) for 72+ hours. */
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden || !scanGateOpen) return;
+  if (!passesScanGate()) {
+    scanGateOpen = false;
+    showGateScreen();
+  }
+});
+
+if (scanGateOpen) {
   render();
   window.addEventListener('resize', autoSizeText);
 } else {
-  document.querySelector('.scrim').style.display = 'none';
-  document.getElementById('resetScreen').style.display = 'flex';
+  showGateScreen();
 }
 </script>
 </body>
