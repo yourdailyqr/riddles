@@ -103,7 +103,8 @@
     flex-shrink:0;
   }
   .nav-row{
-    display:flex;align-items:center;gap:20px;
+    width:100%;
+    display:flex;align-items:center;justify-content:space-between;
   }
   .nav-arrow{
     font-family:'Cinzel Decorative',serif;
@@ -314,18 +315,35 @@ function navigate(dir) {
 
 /* =========================================================
    SCAN GATE LOGIC — Rolling 72-Hour Inactivity Timer
-   1. No stamp -> set stamp now, show content.
-   2. Stamp exists, < 72h since last view -> refresh stamp, show content.
-   3. Stamp exists, >= 72h since last view -> clear stamp, show gate,
-      block content. Re-scanning the QR code / retyping the URL reloads
-      the page with no stamp present, so rule 1 applies again.
+   1. Fresh session (sessionStorage empty) -> ALWAYS bypass the gate,
+      no matter how old the localStorage stamp is. This covers every
+      QR scan and every fresh URL open/reload, unconditionally.
+   2. Existing session (sessionStorage already flagged, i.e. a tab
+      that's still alive and gets re-checked via visibilitychange)
+      -> apply the rolling 72h timer against the localStorage stamp:
+        - No stamp -> set stamp now, show content.
+        - < 72h since last view -> refresh stamp, show content.
+        - >= 72h since last view -> clear (remove) stamp, show gate.
 ========================================================= */
 const GATE_KEY = 'ydq_riddle_last_view_ts';
+const SESSION_KEY = 'ydq_riddle_session_active';
 const GATE_HOURS = 72;
 const GATE_MS = GATE_HOURS * 60 * 60 * 1000;
 
-function passesScanGate() {
+function checkGate() {
   const now = Date.now();
+
+  let hasSession = null;
+  try { hasSession = sessionStorage.getItem(SESSION_KEY); } catch (e) { hasSession = null; }
+
+  // Rule 1: fresh session -> unconditional bypass, no exceptions.
+  if (!hasSession) {
+    try { sessionStorage.setItem(SESSION_KEY, '1'); } catch (e) {}
+    try { localStorage.setItem(GATE_KEY, String(now)); } catch (e) {}
+    return true;
+  }
+
+  // Rule 2: existing session -> rolling 72h timer applies.
   let stamp = null;
   try { stamp = localStorage.getItem(GATE_KEY); } catch (e) { stamp = null; }
 
@@ -344,7 +362,7 @@ function passesScanGate() {
   return false;
 }
 
-let scanGateOpen = passesScanGate();
+let scanGateOpen = checkGate();
 
 function showGateScreen() {
   document.querySelector('.scrim').style.display = 'none';
@@ -355,7 +373,7 @@ function showGateScreen() {
    left open in the background (not reloaded) for 72+ hours. */
 document.addEventListener('visibilitychange', function () {
   if (document.hidden || !scanGateOpen) return;
-  if (!passesScanGate()) {
+  if (!checkGate()) {
     scanGateOpen = false;
     showGateScreen();
   }
